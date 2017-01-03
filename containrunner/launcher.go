@@ -143,16 +143,16 @@ func FindMatchingContainers(existing_containers []ContainerDetails, required_ser
 	return found_containers, remaining_containers
 }
 
-func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool, client *docker.Client) error {
+func GetExistingContainers(client *docker.Client) ([]ContainerDetails, error) {
 	var opts docker.ListContainersOptions
-	var ready_for_launch []ServiceConfiguration
+	var existing_containers []ContainerDetails
 	opts.All = true
 	existing_containers_info, err := client.ListContainers(opts)
 	if err != nil {
-		return nil // TODO: fix
+		log.Error("Error on ListContainers: %+v\n", err)
+		return existing_containers, nil // TODO: fix
 	}
 
-	var existing_containers []ContainerDetails
 	for _, container_info := range existing_containers_info {
 		//fmt.Printf("Got container: %+v\n", container_info)
 		container := ContainerDetails{APIContainers: container_info}
@@ -169,9 +169,24 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 		}
 
 		existing_containers = append(existing_containers, container)
+		//fmt.Printf("Existing container %s: %+v\n", container.Container.Name, container.Container.Config.Image)
+	}
+
+	return existing_containers, nil
+}
+
+func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool, client *docker.Client) error {
+	var ready_for_launch []ServiceConfiguration
+
+	var existing_containers []ContainerDetails
+	existing_containers, err := GetExistingContainers(client)
+	if err != nil {
+		log.Warning("Error on GetExistingContainers! %+v\n", err)
 	}
 
 	var matching_containers []ContainerDetails
+
+	log.Debug("ConvergeContainers: going over %d services", len(conf.Services))
 	for _, required_bound_service := range conf.Services {
 		required_service := required_bound_service.GetConfig()
 
@@ -187,7 +202,7 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 		}
 
 		if len(matching_containers) == 0 {
-			log.Debug("No containers found matching ", required_service, ". Marking for launch...")
+			log.Debug("No containers found matching %+v. Marking for launch...", required_service)
 			ready_for_launch = append(ready_for_launch, required_service)
 		}
 
@@ -203,7 +218,7 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 		}
 	}
 
-	//fmt.Println("Remaining running containers: ", len(existing_containers))
+	log.Debug("Remaining running containers: %d", len(existing_containers))
 	var imageRegexp = regexp.MustCompile("(.+):")
 	for _, container := range existing_containers {
 		m := imageRegexp.FindStringSubmatch(container.Image)
@@ -239,6 +254,7 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 	}
 
 	var somethingFailed error = nil
+	log.Debug("ConvergeContainers: Going to launch %d containers\n", len(ready_for_launch))
 	for _, container := range ready_for_launch {
 		imageName := GetContainerImageNameWithRevision(container, "")
 
@@ -248,6 +264,9 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 		}
 	}
 
+	if err != nil {
+		log.Error("Error on ConvergeContainers on LaunchContainer: %+v", somethingFailed)
+	}
 	return somethingFailed
 }
 

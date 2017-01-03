@@ -250,6 +250,9 @@ func (hac *HAProxySettings) CommitNewConfig(config string, backup bool) (error, 
 		return err, false
 	}
 
+	mtime := time.Now().Local()
+	os.Chtimes(hac.HAProxyConfigPath+"/haproxy-lastupdated.txt", mtime, mtime)
+
 	return nil, true
 
 }
@@ -406,10 +409,14 @@ func (hac *HAProxySettings) UpdateBackends(configuration *RuntimeConfiguration, 
 		return true, nil
 	}
 
+	commands := ""
+
 	enabled_backends := make(map[string]bool)
 	total_backends := 0
 
 	//fmt.Printf("current backends: %+v\n", current_backends)
+
+	fmt.Printf("LocallyRequiredServices: %+v\n", localInstanceInformation.LocallyRequiredServices)
 
 	for service_name, backend_servers := range localInstanceInformation.LocallyRequiredServices {
 		//fmt.Printf("Service backend for service_name %s: %+v", service_name, backend_servers)
@@ -429,6 +436,10 @@ func (hac *HAProxySettings) UpdateBackends(configuration *RuntimeConfiguration, 
 		}
 	}
 	//fmt.Printf("enabled backends: %+v\n", enabled_backends)
+	if len(enabled_backends) == 0 {
+		fmt.Printf("No enabled backends, will not disable anything\n")
+		return false, nil
+	}
 
 	for section_name, section_backends := range current_backends {
 		for backend, backend_status := range section_backends {
@@ -450,31 +461,31 @@ func (hac *HAProxySettings) UpdateBackends(configuration *RuntimeConfiguration, 
 
 			log.Debug(fmt.Sprintf("executing command: %s", command))
 
-			sockets, err := filepath.Glob(hac.HAProxySocket)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error finding haproxy sockets from path %s: %+v\n", hac.HAProxySocket, err)
-			}
-
-			for _, socket_name := range sockets {
-				runHAProxyCommand(command, socket_name)
-				if err != nil {
-					return true, err
-				}
-			}
+			commands += command
 		}
 	}
 
-	/*
-		if total_backends > 15 {
-			enabled_servers_percenet := float32(len(enabled_backends)) / float32(total_backends)
+	if len(commands) > 0 {
 
-			// Restart haproxy if there's more than 30% of the backends are down
-			if enabled_servers_percenet < 0.4 {
-				fmt.Fprintf(os.Stderr, "Restarting haproxy because less than %.f%% servers are up (%d enabled backends, %d total backends)\n", enabled_servers_percenet*100, len(enabled_backends), total_backends)
-				return true, nil
+		sockets, err := filepath.Glob(hac.HAProxySocket)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding haproxy sockets from path %s: %+v\n", hac.HAProxySocket, err)
+		}
+
+		fmt.Printf("Running these haproxy commands to %d sockets:\n%s\n", len(sockets), commands)
+
+		for _, socket_name := range sockets {
+			runHAProxyCommand(commands, socket_name)
+			if err != nil {
+				return true, err
 			}
 		}
-	*/
+
+		err = ioutil.WriteFile(hac.HAProxyConfigPath+"/haproxy-lastupdated.txt", []byte(commands), 0664)
+		if err != nil {
+			log.Error("Could not update haproxy-lastupdated file due to error: %+v", err)
+		}		
+	}
 
 	return false, nil
 }

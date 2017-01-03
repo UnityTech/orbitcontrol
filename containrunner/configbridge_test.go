@@ -427,6 +427,7 @@ func TestGetMachineConfigurationByTags(t *testing.T) {
 	configuration, err := containrunner.GetMachineConfigurationByTags(etcdClient, tags, "")
 
 	assert.Equal(t, configuration.Services["ubuntu"].GetConfig().Name, "ubuntu")
+	fmt.Printf("TestGetMachineConfigurationByTags: %+v\n", configuration.Services["ubuntu"].GetConfig().Container)
 	assert.Equal(t, configuration.Services["ubuntu"].GetConfig().Container.HostConfig.NetworkMode, "host")
 	assert.Equal(t, configuration.Services["ubuntu"].GetConfig().Container.Config.AttachStderr, false)
 	assert.Equal(t, configuration.Services["ubuntu"].GetConfig().Container.Config.Hostname, "ubuntu")

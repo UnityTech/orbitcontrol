@@ -85,7 +85,7 @@ type ServiceConfiguration struct {
 	SourceControl *SourceControl
 	Attributes    map[string]string
 }
-
+ 
 type SourceControl struct {
 	Origin     string
 	OAuthToken string
@@ -151,10 +151,14 @@ func (c BoundService) GetConfig() ServiceConfiguration {
 }
 
 func (c *ConfigResultEtcdPublisher) PublishServiceState(serviceName string, endpoint string, ok bool, info *EndpointInfo) {
+	if serviceName == "" {
+		fmt.Printf("Error: PublishServiceState was called with empty serviceName\n")
+		return
+	}
+
 	if c.etcd == nil {
 		log.Debug("Creating new Etcd client (%+v) so that we can report that service %s at %s is %+v using ttl %d\n", c.EtcdEndpoints, serviceName, endpoint, ok, c.ttl)
 		c.etcd = GetEtcdClient(c.EtcdEndpoints)
-
 	}
 
 	if info != nil {
@@ -165,12 +169,28 @@ func (c *ConfigResultEtcdPublisher) PublishServiceState(serviceName string, endp
 
 	key := c.EtcdBasePath + "/services/" + serviceName + "/endpoints/" + endpoint
 
-	_, err := c.etcd.Get(context.Background(), key, nil)
+	previousKey, err := c.etcd.Get(context.Background(), key, &etcd.GetOptions{Recursive: true, Sort: true})
 	if err != nil && !strings.HasPrefix(err.Error(), "100:") { // 100: Key not found
 		fmt.Fprintf(os.Stderr, "Error getting key %s from etcd. Error: %+v\n", key, err)
 		c.etcd = nil
 		return
+	} else if err == nil {
+
+		if previousKey.Node != nil && previousKey.Node.Value != "" && info == nil {
+			info = &EndpointInfo{}
+			err = json.Unmarshal([]byte(previousKey.Node.Value), info)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error unmarshalling endpointInfo from key %s: error: %+v, endpointInfo: %+v\n", key, err, previousKey.Node.Value)
+			}
+			if info.Revision != "" {
+				fmt.Printf("PublishServiceState: Missing endpointInfo, going to use previous info when updating service status: %+v\n", info)
+			} else {
+				info = nil
+			}
+
+		}
 	}
+
 	if ok == true && err != nil && strings.HasPrefix(err.Error(), "100:") {
 		// Key did not exists so we need to add the key
 		log.Info(LogEvent(ServiceStateChangeEvent{serviceName, endpoint, ok}))

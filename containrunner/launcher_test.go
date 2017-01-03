@@ -52,6 +52,18 @@ func TestGetContainerImageNameWithRevision(t *testing.T) {
 
 }
 
+
+func TestGetExistingContainers(t *testing.T) {
+
+	client := GetDockerClient()
+
+	fmt.Printf("***** TestGetExistingContainers\n")
+	existing_containers, err := GetExistingContainers(client)
+	assert.Nil(t, err)
+
+	fmt.Printf("%+v, %+v\n", existing_containers, err)
+}
+
 func TestConvergeContainers(t *testing.T) {
 
 	client := GetDockerClient()

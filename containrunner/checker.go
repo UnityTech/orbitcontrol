@@ -81,8 +81,6 @@ func CheckConfigUpdateWorker(configurations <-chan MachineConfiguration, results
 		//fmt.Printf("pretick on %s, %+v\n", endpointAddress, configurations)
 		newConf, alive := <-configurations
 		//fmt.Printf("tick. Alive: %d, endpoint: %s\n", alive, endpointAddress)
-		//select {
-		//case newConf, alive := <-configurations:
 		if alive {
 			//fmt.Printf("Got new configuration: %+v\n", newConf)
 

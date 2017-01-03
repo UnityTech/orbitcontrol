@@ -77,7 +77,7 @@ func (s *Containrunner) Init() {
 	globalConfiguration, err := s.GetGlobalOrbitProperties(etcdClient)
 	if err != nil {
 		log.Info(LogString("Could not get global orbit properties"))
-		return
+		panic(err)
 	}
 
 	log.Debug("Containrunner.Init called. etcd endpoints: %+v, Global configuration: %+v\n", s.EtcdEndpoints, globalConfiguration)
@@ -202,6 +202,22 @@ func (s *Containrunner) EventHandler(incomingNetworkEvents <-chan OrbitEvent, in
 
 // Takes an OrbitEvent and calls appropriate handler function in a new goroutine.
 func (s *Containrunner) DispatchEvent(receiveredEvent OrbitEvent, etcdClient etcd.KeysAPI) {
+	start := time.Now()
+	ch := make(chan string, 1)
+
+	go func(ch chan string, name string, start time.Time) {
+
+		select {
+		case <-ch:
+			elapsed := time.Since(start)
+			fmt.Printf("Timing: %s event took %s.\n", receiveredEvent.Type, elapsed)
+			return
+		case <-time.After(time.Second):
+			fmt.Printf("Timing timeout: Function %s tool longer than 1 second to complete\n", name)
+		}
+
+	}(ch, receiveredEvent.Type, start)
+
 	switch receiveredEvent.Type {
 	case "NoopEvent":
 		log.Debug("Got NoopEvent %+v\n", receiveredEvent)
@@ -225,6 +241,9 @@ func (s *Containrunner) DispatchEvent(receiveredEvent OrbitEvent, etcdClient etc
 		go s.HandleConvergeContainersEvent(receiveredEvent.Ptr.(ConvergeContainersEvent))
 		break
 	}
+
+	ch <- "done"
+
 }
 
 func (s *Containrunner) HandleNewRuntimeConfigurationEvent(e NewRuntimeConfigurationEvent) {
@@ -241,15 +260,22 @@ func (s *Containrunner) HandleNewRuntimeConfigurationEvent(e NewRuntimeConfigura
 	// This marks that the configuration has changed recently.
 	s.haproxyUpdateWindowCurrent = time.Now().Unix()
 
+
 	// If haproxy has still not been updated after 60 seconds then force the update
 	if s.haproxyUpdateWindowCurrent > s.haproxyUpdateWindowStart+60 {
 		s.haproxyUpdateWindowStart = 0
 		s.haproxyUpdateWindowCurrent = 0
 
 		log.Info(LogString("Forcing haproxy update 60 seconds after first new update"))
+		fmt.Printf("TIMEOUT: convergehaproxy start\n")
 		s.ConvergeHAProxy()
+		fmt.Printf("TIMEOUT: convergehaproxy end\n")
+
 	} else {
+		fmt.Printf("TIMEOUT: SoftUpdateHAProxy start\n")
 		s.SoftUpdateHAProxy()
+		fmt.Printf("TIMEOUT: SoftUpdateHAProxy end\n")
+
 	}
 
 	s.incomingLoopbackEvents <- NewOrbitEvent(ConvergeContainersEvent{e.NewRuntimeConfiguration.MachineConfiguration})
@@ -270,7 +296,9 @@ func (s *Containrunner) ConvergeHAProxy() {
 func (s *Containrunner) SoftUpdateHAProxy() {
 	if s.currentConfiguration.MachineConfiguration.HAProxyConfiguration != nil && s.localInstanceInformation != nil && s.localInstanceInformation.LocallyRequiredServices != nil {
 		//log.Debug("Doing soft haproxy update: %s", s.localInstanceInformation.LocallyRequiredServices)
-		s.HAProxySettings.UpdateBackends(&s.currentConfiguration, s.localInstanceInformation)
+		if len(s.localInstanceInformation.LocallyRequiredServices) > 0 {
+			s.HAProxySettings.UpdateBackends(&s.currentConfiguration, s.localInstanceInformation)
+		}
 	} else {
 		if s.currentConfiguration.MachineConfiguration.HAProxyConfiguration == nil {
 			log.Error("Could not do soft haproxy update: no HAProxyConfiguration")
@@ -293,19 +321,18 @@ func (s *Containrunner) HandleConvergeContainersEvent(e ConvergeContainersEvent)
 	// Only try to relaunch services which has Container configuration and that the restart command is not already running
 	if !s.CommandController.IsRunning("ConvergeContainers") {
 		f := func(arguments interface{}) error {
+
 			docker := GetDockerClient()
 			configuration := arguments.(MachineConfiguration)
-			//log.Info("Converging containers with configuration")
+			log.Info("Converging containers with configuration")
 			//log.Info("Converging containers with configuration: %+v", configuration)
 
-			err := ConvergeContainers(configuration, true, !s.NoSleep, docker)
+			s.CheckEngine.PushNewConfiguration(configuration)
+
+
+			err := ConvergeContainers(configuration, !s.NoSleep, !s.NoSleep, docker)
 
 			if err == nil {
-				// This must be done after the containers have been converged so that the Check Engine
-				// can report the correct container revision
-
-				s.CheckEngine.PushNewConfiguration(configuration)
-
 				s.SetLastConvergeTime(time.Now())
 			} else {
 				fmt.Printf("Error on ConvergeContainers: %+v\n", err)
