@@ -22,6 +22,7 @@ type HAProxySettings struct {
 	HAProxyConfigName    string
 	HAProxyReloadCommand string
 	HAProxySocket        string
+	FirstConvergeDone    bool
 }
 
 // Dynamic HAProxy settings receivered from configbridge
@@ -35,6 +36,7 @@ type HAProxyConfiguration struct {
 
 type BackendParameters struct {
 	Nickname             string
+	Host                 string
 	HostPort             string
 	Revision             string
 	ServiceConfiguration ServiceConfiguration
@@ -99,18 +101,19 @@ func (hac *HAProxySettings) ConvergeHAProxy(configuration *RuntimeConfiguration,
 		return err
 	}
 
-	if !reload_required {
+	if !reload_required && hac.FirstConvergeDone {
 		log.Debug("HAProxy could be updated without changing configuration")
 		return nil
 	}
 
-	err, reload_required = hac.CommitNewConfig(config, true) // true meand do backups
+	err, reload_required = hac.CommitNewConfig(config, true) // true means to do backups
 	if err != nil {
 		return err
 	}
 
 	if reload_required {
 		err = hac.ReloadHAProxy()
+		hac.FirstConvergeDone = true
 	} else {
 		log.Debug("ConvergeHAProxy called but reload was not required")
 	}
@@ -269,6 +272,7 @@ func (hac *HAProxySettings) GetNewConfig(configuration *RuntimeConfiguration, lo
 				for hostport, endpointInfo := range backend_servers {
 					backends = append(backends, BackendParameters{
 						Nickname:             service_name + "-" + hostport,
+						Host:                 strings.Split(hostport, ":")[0],
 						HostPort:             hostport,
 						Revision:             endpointInfo.Revision,
 						ServiceConfiguration: endpointInfo.ServiceConfiguration,
@@ -291,6 +295,7 @@ func (hac *HAProxySettings) GetNewConfig(configuration *RuntimeConfiguration, lo
 					if endpointInfo != nil && endpointInfo.AvailabilityZone == localInstanceInformation.AvailabilityZone {
 						backends = append(backends, BackendParameters{
 							Nickname:             service_name + "-" + hostport,
+							Host:                 strings.Split(hostport, ":")[0],
 							HostPort:             hostport,
 							Revision:             endpointInfo.Revision,
 							ServiceConfiguration: endpointInfo.ServiceConfiguration,
@@ -419,7 +424,7 @@ func (hac *HAProxySettings) UpdateBackends(configuration *RuntimeConfiguration, 
 	fmt.Printf("LocallyRequiredServices: %+v\n", localInstanceInformation.LocallyRequiredServices)
 
 	for service_name, backend_servers := range localInstanceInformation.LocallyRequiredServices {
-		//fmt.Printf("Service backend for service_name %s: %+v", service_name, backend_servers)
+		fmt.Printf("Service backend for service_name %s: %+v", service_name, backend_servers)
 		// Check that there actually is configured servers for this backend before dooming that haproxy needs to be restarted
 		if _, ok := current_backends[service_name]; ok == false && len(backend_servers) > 0 {
 			fmt.Printf("Restart required: missing section %s. Notice that the backend name must match the individual endpoint names.\n", service_name)
@@ -438,7 +443,7 @@ func (hac *HAProxySettings) UpdateBackends(configuration *RuntimeConfiguration, 
 	//fmt.Printf("enabled backends: %+v\n", enabled_backends)
 	if len(enabled_backends) == 0 {
 		fmt.Printf("No enabled backends, will not disable anything\n")
-		return false, nil
+		return true, nil
 	}
 
 	for section_name, section_backends := range current_backends {

@@ -184,12 +184,12 @@ Content-Type: text/html
 
 	res, err = etcdClient.Get(context.Background(), "/test/services/ubuntu/config", &etcd.GetOptions{Recursive: true, Sort: true})
 	assert.Nil(t, err)
-	assert.Equal(t, res.Node.Value, "{\"Name\":\"ubuntu\",\"EndpointPort\":3500,\"Checks\":[{\"Type\":\"http\",\"Url\":\"http://127.0.0.1:3500/check\",\"HttpHost\":\"\",\"Username\":\"\",\"Password\":\"\",\"HostPort\":\"\",\"DummyResult\":false,\"ExpectHttpStatus\":\"\",\"ExpectString\":\"\",\"ConnectTimeout\":0,\"ResponseTimeout\":0,\"Delay\":0}],\"Container\":{\"HostConfig\":{\"Binds\":[\"/tmp:/data\"],\"NetworkMode\":\"host\",\"RestartPolicy\":{},\"LogConfig\":{}},\"Config\":{\"Env\":[\"NODE_ENV=vagrant\"],\"Image\":\"ubuntu\"}},\"Revision\":null,\"SourceControl\":{\"Origin\":\"github.com/Applifier/ubuntu\",\"OAuthToken\":\"\",\"CIUrl\":\"\"},\"Attributes\":{}}")
+	assert.Equal(t, res.Node.Value, "{\"Name\":\"ubuntu\",\"EndpointPort\":3500,\"Checks\":[{\"Type\":\"http\",\"Url\":\"http://127.0.0.1:3500/check\",\"HttpHost\":\"\",\"Username\":\"\",\"Password\":\"\",\"HostPort\":\"\",\"DummyResult\":false,\"ExpectHttpStatus\":\"\",\"ExpectString\":\"\",\"ConnectTimeout\":0,\"ResponseTimeout\":0,\"Delay\":0}],\"Container\":{\"HostConfig\":{\"Binds\":[\"/tmp:/data\"],\"NetworkMode\":\"host\",\"RestartPolicy\":{},\"LogConfig\":{}},\"Config\":{\"Env\":[\"NODE_ENV=vagrant\"],\"Cmd\":null,\"Image\":\"ubuntu\",\"Entrypoint\":null}},\"Revision\":null,\"SourceControl\":{\"Origin\":\"github.com/Applifier/ubuntu\",\"OAuthToken\":\"\",\"CIUrl\":\"\"},\"Attributes\":{}}")
 
 	res, err = etcdClient.Get(context.Background(), "/test/machineconfigurations/tags/testtag/services/ubuntu", &etcd.GetOptions{Recursive: true, Sort: true})
 	assert.Nil(t, err)
 
-	expected := "{\"Name\":\"\",\"EndpointPort\":0,\"Checks\":null,\"Container\":{\"HostConfig\":{\"RestartPolicy\":{},\"LogConfig\":{}},\"Config\":{\"Hostname\":\"ubuntu-test\",\"Env\":[\"NODE_ENV=staging\"],\"Image\":\"ubuntu\"}},\"Revision\":null,\"SourceControl\":null,\"Attributes\":null}"
+	expected := "{\"Name\":\"\",\"EndpointPort\":0,\"Checks\":null,\"Container\":{\"HostConfig\":{\"RestartPolicy\":{},\"LogConfig\":{}},\"Config\":{\"Hostname\":\"ubuntu-test\",\"Env\":[\"NODE_ENV=staging\"],\"Cmd\":null,\"Image\":\"ubuntu\",\"Entrypoint\":null}},\"Revision\":null,\"SourceControl\":null,\"Attributes\":null}"
 	assert.Equal(t, expected, res.Node.Value)
 
 }
@@ -251,7 +251,7 @@ func TestUploadOrbitConfigurationToEtcdWhichRemovesAService(t *testing.T) {
 	// Verify that this service exists before we try to delete it in the second step
 	res, err := etcdClient.Get(context.Background(), "/test/services/ubuntu/config", &etcd.GetOptions{Recursive: true, Sort: true})
 	assert.Nil(t, err)
-	assert.Equal(t, "{\"Name\":\"ubuntu\",\"EndpointPort\":3500,\"Checks\":[{\"Type\":\"http\",\"Url\":\"http://127.0.0.1:3500/check\",\"HttpHost\":\"\",\"Username\":\"\",\"Password\":\"\",\"HostPort\":\"\",\"DummyResult\":false,\"ExpectHttpStatus\":\"\",\"ExpectString\":\"\",\"ConnectTimeout\":0,\"ResponseTimeout\":0,\"Delay\":0}],\"Container\":{\"HostConfig\":{\"Binds\":[\"/tmp:/data\"],\"NetworkMode\":\"host\",\"RestartPolicy\":{},\"LogConfig\":{}},\"Config\":{\"Env\":[\"NODE_ENV=vagrant\"],\"Image\":\"ubuntu\"}},\"Revision\":null,\"SourceControl\":{\"Origin\":\"github.com/Applifier/ubuntu\",\"OAuthToken\":\"\",\"CIUrl\":\"\"},\"Attributes\":{}}", res.Node.Value)
+	assert.Equal(t, "{\"Name\":\"ubuntu\",\"EndpointPort\":3500,\"Checks\":[{\"Type\":\"http\",\"Url\":\"http://127.0.0.1:3500/check\",\"HttpHost\":\"\",\"Username\":\"\",\"Password\":\"\",\"HostPort\":\"\",\"DummyResult\":false,\"ExpectHttpStatus\":\"\",\"ExpectString\":\"\",\"ConnectTimeout\":0,\"ResponseTimeout\":0,\"Delay\":0}],\"Container\":{\"HostConfig\":{\"Binds\":[\"/tmp:/data\"],\"NetworkMode\":\"host\",\"RestartPolicy\":{},\"LogConfig\":{}},\"Config\":{\"Env\":[\"NODE_ENV=vagrant\"],\"Cmd\":null,\"Image\":\"ubuntu\",\"Entrypoint\":null}},\"Revision\":null,\"SourceControl\":{\"Origin\":\"github.com/Applifier/ubuntu\",\"OAuthToken\":\"\",\"CIUrl\":\"\"},\"Attributes\":{}}", res.Node.Value)
 
 	orbitConfiguration, err = ct.LoadOrbitConfigurationFromFiles("/Development/go/src/github.com/garo/orbitcontrol/testdata")
 	assert.Nil(t, err)

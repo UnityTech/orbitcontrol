@@ -754,6 +754,7 @@ func MergeServiceConfig(dst ServiceConfiguration, overwrite ServiceConfiguration
 	if overwrite.Container != nil {
 		if &overwrite.Container.Config != nil {
 			if &overwrite.Container.Config.Env != nil {
+				log.Debug("&dst: %+v", dst)
 				if &dst.Container.Config.Env == nil {
 					dst.Container.Config.Env = overwrite.Container.Config.Env
 				} else {
@@ -1012,7 +1013,7 @@ func (c Containrunner) GetServiceRevision(service_name string, etcdClient etcd.K
 	if err != nil && !strings.HasPrefix(err.Error(), "100:") { // 100: Key not found
 		panic(err)
 	}
-
+	fmt.Printf("GetServiceRevison: %+v\n", res.Node.Value)
 	serviceRevision := new(ServiceRevision)
 
 	err = json.Unmarshal([]byte(res.Node.Value), serviceRevision)

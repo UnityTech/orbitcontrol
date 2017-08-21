@@ -187,7 +187,9 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 	var matching_containers []ContainerDetails
 
 	log.Debug("ConvergeContainers: going over %d services", len(conf.Services))
-	for _, required_bound_service := range conf.Services {
+	for service_name, required_bound_service := range conf.Services {
+
+		log.Debug("getting config for service %s", service_name)
 		required_service := required_bound_service.GetConfig()
 
 		//log.Debug("required_bound_service: %+v", required_bound_service)
@@ -209,7 +211,7 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 		if len(matching_containers) == 1 {
 			if !matching_containers[0].Container.State.Running {
 				log.Debug("Found one matching container and it's not running! Removing it so we can start it again", matching_containers[0])
-				err = client.RemoveContainer(docker.RemoveContainerOptions{matching_containers[0].Container.ID, true, true})
+				err = client.RemoveContainer(docker.RemoveContainerOptions{ID:matching_containers[0].Container.ID, RemoveVolumes:true, Force:true})
 				if err != nil {
 					log.Warning("Tried to delete container %s which was supposed to exists", matching_containers[0].Container.ID)
 				}
@@ -231,7 +233,7 @@ func ConvergeContainers(conf MachineConfiguration, preDelay bool, postDelay bool
 
 					log.Debug("Found container %s (%s) which we are authoritative but its running. Going to stop it...\n", container.APIContainers.ID, container.APIContainers.Image)
 					client.StopContainer(container.Container.ID, 40)
-					err = client.RemoveContainer(docker.RemoveContainerOptions{container.Container.ID, true, true})
+					err = client.RemoveContainer(docker.RemoveContainerOptions{ID:container.Container.ID, RemoveVolumes:true, Force:true})
 					if err != nil {
 						log.Panic(err)
 					}
@@ -524,7 +526,7 @@ func LaunchContainer(name string, imageName string, container *ContainerConfigur
 	if image == nil {
 		for tries := 0; ; tries++ {
 			if preDelay == true {
-				delay := rand.Intn(40) + 1
+				delay := rand.Intn(60*4) + 1
 				fmt.Printf("Sleeping %d seconds before pulling image %s\n", delay, imageName)
 				time.Sleep(time.Second * time.Duration(delay))
 			}
@@ -563,9 +565,10 @@ func LaunchContainer(name string, imageName string, container *ContainerConfigur
 	var config docker.Config = container.Config
 	config.Image = imageName
 	options.Config = &config
+	options.HostConfig = &container.HostConfig
 
 	if postDelay {
-		delay := rand.Intn(40) + 1
+		delay := rand.Intn(60) + 1
 		fmt.Printf("Sleeping %d seconds before relaunching container %s\n", delay, imageName)
 		time.Sleep(time.Second * time.Duration(delay))
 	}
@@ -618,7 +621,7 @@ func DestroyContainer(name string, client *docker.Client) error {
 			if err != nil {
 				log.Warning("Could not stop container: %+v. Err: %+v\n", container_info, err)
 			}
-			err = client.RemoveContainer(docker.RemoveContainerOptions{container.ID, true, true})
+			err = client.RemoveContainer(docker.RemoveContainerOptions{ID:container.ID, RemoveVolumes:true, Force:true})
 			if err != nil {
 				log.Warning("Could not remove container: %+v. Err: %+v\n", container_info, err)
 			}

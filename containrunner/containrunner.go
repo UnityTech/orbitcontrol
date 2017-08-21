@@ -392,7 +392,7 @@ func (s *Containrunner) HandleServiceStateEvent(e ServiceStateEvent, etcdClient 
 		configResultPublisher.PublishServiceState(e.Service, e.Endpoint, e.IsUp, e.EndpointInfo)
 	}
 
-	if e.IsUp == false && time.Since(e.SameStateSince) > time.Minute {
+	if e.IsUp == false && time.Since(e.SameStateSince) > time.Minute*4 {
 		name := fmt.Sprintf("automatic-relaunch-service-%s", e.Service)
 
 		serviceConfiguration, err := s.GetServiceByName(e.Service, etcdClient, s.MachineAddress)

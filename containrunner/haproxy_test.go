@@ -147,6 +147,34 @@ func TestLocalEndpoints(t *testing.T) {
 	assert.Equal(t, str, "10.0.0.3:8010.0.0.4:80")
 }
 
+func TestLocalEndpointsWithHostOnly(t *testing.T) {
+	var settings HAProxySettings
+
+	runtimeConfiguration := RuntimeConfiguration{}
+	runtimeConfiguration.ServiceBackends = make(map[string]map[string]*EndpointInfo)
+	runtimeConfiguration.ServiceBackends["test"] = make(map[string]*EndpointInfo)
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.3:80"] = &EndpointInfo{}
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.3:80"].Revision = "rev"
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.3:80"].AvailabilityZone = "zone1"
+
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.4:80"] = &EndpointInfo{}
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.4:80"].Revision = "rev"
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.4:80"].AvailabilityZone = "zone1"
+
+	runtimeConfiguration.ServiceBackends["test"]["10.0.0.5:80"] = &EndpointInfo{}
+
+	runtimeConfiguration.MachineConfiguration.HAProxyConfiguration = NewHAProxyConfiguration()
+	runtimeConfiguration.MachineConfiguration.HAProxyConfiguration.Template = `{{range LocalEndpoints "test"}}{{.Host}}{{end}}`
+
+	localInstanceInformation := NewLocalInstanceInformation()
+	localInstanceInformation.AvailabilityZone = "zone1"
+
+	str, err := settings.GetNewConfig(&runtimeConfiguration, localInstanceInformation)
+	assert.Nil(t, err)
+
+	assert.Equal(t, str, "10.0.0.310.0.0.4")
+}
+
 func TestReloadHAProxyOk(t *testing.T) {
 	var settings HAProxySettings
 	settings.HAProxyReloadCommand = "/bin/true"
